@@ -1,0 +1,459 @@
+{
+    "objects": [
+        {
+            "type": "cube",
+            "position": [
+                -10.930015426959628,
+                0.0012741590383207324,
+                -0.2015465604039628
+            ],
+            "color": [
+                1.0,
+                0.6274509803921569,
+                0.6274509803921569
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 20.0,
+                "YLength": 10.0,
+                "ZLength": 10.0
+            },
+            "notes": "Low RIN Laser",
+            "labels": [
+                {
+                    "text": "1550nm CW Laser",
+                    "position": [
+                        -10.938987219504583,
+                        0.015484299231083298,
+                        5.758060672527035
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "cube",
+            "position": [
+                6.409551863311054,
+                -0.03379025510786174,
+                0.0
+            ],
+            "color": [
+                1.0,
+                1.0,
+                0.0
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 10.0,
+                "YLength": 3.0,
+                "ZLength": 5.0
+            },
+            "labels": [
+                {
+                    "text": "EOM",
+                    "position": [
+                        6.400247582670692,
+                        -0.019104872183763943,
+                        2.99991397857666
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "cube",
+            "position": [
+                18.711253744951705,
+                -0.25447302081183043,
+                0.1713723833717964
+            ],
+            "color": [
+                0.6666666666666666,
+                1.0,
+                1.0
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 10.0,
+                "YLength": 10.0,
+                "ZLength": 10.0
+            },
+            "labels": [
+                {
+                    "text": "BS",
+                    "position": [
+                        18.710896695836027,
+                        -0.22778260246903592,
+                        6.205442558796816
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "cube",
+            "position": [
+                18.830338917474602,
+                -14.815748894459716,
+                0.0
+            ],
+            "color": [
+                0.6666666666666666,
+                1.0,
+                1.0
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 10.0,
+                "YLength": 10.0,
+                "ZLength": 10.0
+            },
+            "labels": [
+                {
+                    "text": "BS",
+                    "position": [
+                        18.84818737169237,
+                        -14.754562783731444,
+                        5.999477767944336
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "cube",
+            "position": [
+                35.67596753026952,
+                -0.37838128981332514,
+                0.1713729586002719
+            ],
+            "color": [
+                0.6666666666666666,
+                1.0,
+                1.0
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 10.0,
+                "YLength": 10.0,
+                "ZLength": 10.0
+            },
+            "labels": [
+                {
+                    "text": "BS",
+                    "position": [
+                        35.685797365226534,
+                        -0.31193882467529244,
+                        6.205108015894392
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "cylinder",
+            "position": [
+                50.24429035558103,
+                0.10201002746924859,
+                0.1526784080878132
+            ],
+            "color": [
+                0.10980392156862745,
+                0.10980392156862745,
+                0.10980392156862745
+            ],
+            "orientation": [
+                -1.3849747846134957,
+                -43.07934872782619,
+                -36.12455421183182
+            ],
+            "dimensions": {
+                "Radius": 5.0,
+                "Height": 1.0
+            }
+        },
+        {
+            "type": "cube",
+            "position": [
+                35.4029721107275,
+                -27.94406933749212,
+                -7.40057253754145e-05
+            ],
+            "color": [
+                0.6666666666666666,
+                1.0,
+                1.0
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 10.0,
+                "YLength": 10.0,
+                "ZLength": 10.0
+            },
+            "labels": [
+                {
+                    "text": "Dichroic BS",
+                    "position": [
+                        35.43226219936027,
+                        -27.884220980892444,
+                        6.007590483422296
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "cylinder",
+            "position": [
+                49.30878771442074,
+                -58.40021369681745,
+                0.1407308817383679
+            ],
+            "color": [
+                0.16862745098039217,
+                0.16862745098039217,
+                0.16862745098039217
+            ],
+            "orientation": [
+                0.574586635822633,
+                -158.09861779193804,
+                -135.5513054364692
+            ],
+            "dimensions": {
+                "Radius": 5.0,
+                "Height": 1.0
+            }
+        },
+        {
+            "type": "cube",
+            "position": [
+                35.459079873941846,
+                -41.83457557895022,
+                0.17137268594292543
+            ],
+            "color": [
+                0.6666666666666666,
+                1.0,
+                1.0
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 10.0,
+                "YLength": 10.0,
+                "ZLength": 10.0
+            },
+            "labels": [
+                {
+                    "text": "Dichroic BS",
+                    "position": [
+                        35.527014041706934,
+                        -41.80952057318365,
+                        6.208624239988878
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "cube",
+            "position": [
+                35.536438403299044,
+                -58.00829217184022,
+                0.18880907156501436
+            ],
+            "color": [
+                0.6666666666666666,
+                1.0,
+                1.0
+            ],
+            "orientation": [
+                0.0,
+                -0.0,
+                0.0
+            ],
+            "dimensions": {
+                "XLength": 10.0,
+                "YLength": 10.0,
+                "ZLength": 10.0
+            },
+            "labels": [
+                {
+                    "text": "BS",
+                    "position": [
+                        35.54374587092914,
+                        -57.953033394583755,
+                        6.234004518557275
+                    ]
+                }
+            ]
+        }
+    ],
+    "connections": [
+        {
+            "from": 0,
+            "to": 1,
+            "point1": [
+                -10.930015426959628,
+                0.0012741590383207324,
+                -0.2015465604039628
+            ],
+            "point2": [
+                1.4095518633110542,
+                -0.03379025510786174,
+                0.0
+            ],
+            "connection_color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "connection_cylinder_radius": 0.5,
+            "connection_line_thickness": 5.0,
+            "connection_line_type": "Straight",
+            "connection_arrow": "None",
+            "connection_linestyle": "Solid"
+        },
+        {
+            "from": 1,
+            "to": 2,
+            "point1": [
+                6.409551863311054,
+                -0.03379025510786174,
+                0.0
+            ],
+            "point2": [
+                13.711253744951705,
+                -0.25447302081183043,
+                0.1713723833717964
+            ],
+            "connection_color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "connection_cylinder_radius": 0.5,
+            "connection_line_thickness": 5.0,
+            "connection_line_type": "Straight",
+            "connection_arrow": "None",
+            "connection_linestyle": "Solid"
+        },
+        {
+            "from": 2,
+            "to": 4,
+            "point1": [
+                18.711253744951705,
+                -0.25447302081183043,
+                0.1713723833717964
+            ],
+            "point2": [
+                30.675967530269517,
+                -0.37838128981332514,
+                0.1713729586002719
+            ],
+            "connection_color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "connection_cylinder_radius": 0.5,
+            "connection_line_thickness": 5.0,
+            "connection_line_type": "Straight",
+            "connection_arrow": "None",
+            "connection_linestyle": "Solid"
+        },
+        {
+            "from": 4,
+            "to": 5,
+            "point1": [
+                35.67596753026952,
+                -0.37838128981332514,
+                0.1713729586002719
+            ],
+            "point2": [
+                49.94960518493526,
+                -0.3017406416096956,
+                0.164763416146519
+            ],
+            "connection_color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "connection_cylinder_radius": 0.5,
+            "connection_line_thickness": 5.0,
+            "connection_line_type": "Straight",
+            "connection_arrow": "None",
+            "connection_linestyle": "Solid"
+        },
+        {
+            "from": 5,
+            "to": 7,
+            "point1": [
+                50.24429035558103,
+                0.10201002746924859,
+                0.1526784080878132
+            ],
+            "point2": [
+                48.95867016864659,
+                -58.043292749493375,
+                0.13571675146748555
+            ],
+            "connection_color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "connection_cylinder_radius": 0.5,
+            "connection_line_thickness": 5.0,
+            "connection_line_type": "Straight",
+            "connection_arrow": "None",
+            "connection_linestyle": "Solid"
+        },
+        {
+            "from": 7,
+            "to": 9,
+            "point1": [
+                49.30878771442074,
+                -58.40021369681745,
+                0.1407308817383679
+            ],
+            "point2": [
+                40.536438403299044,
+                -58.00829217184022,
+                0.18880907156501436
+            ],
+            "connection_color": [
+                1.0,
+                0.0,
+                0.0
+            ],
+            "connection_cylinder_radius": 0.5,
+            "connection_line_thickness": 5.0,
+            "connection_line_type": "Straight",
+            "connection_arrow": "None",
+            "connection_linestyle": "Solid"
+        }
+    ]
+}

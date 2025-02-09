@@ -162,31 +162,40 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
 
     def rightButtonReleaseEvent(self, obj, event):
         self.rightHoldTimer.stop()
-        if self.cameraRotateActive:
-            self.cameraRotateActive = False
-            self.rightButtonDown = False
-            self.rightLastPos = None
-            super(CustomInteractorStyle, self).OnLeftButtonUp()
-            return
-        elif not self.rightHeld:
-            # It was a quick click on an interactive object:
-            clickPos = self.GetInteractor().GetEventPosition()
-            picker = vtk.vtkPropPicker()
-            picker.Pick(clickPos[0], clickPos[1], 0, self.renderer)
-            picked = picker.GetActor()
-            if picked is not None and picked in self.mainWindow.actor_types:
-                from PyQt5.QtWidgets import QMenu
-                menu = QMenu()
+        clickPos = self.GetInteractor().GetEventPosition()
+        picker = vtk.vtkPropPicker()
+        picker.Pick(clickPos[0], clickPos[1], 0, self.renderer)
+        picked = picker.GetActor()
+
+        if picked is not None:
+            from PyQt5.QtWidgets import QMenu
+            menu = QMenu()
+            # If the picked actor is one of your shapes...
+            if picked in self.mainWindow.actor_types:
                 connectAction = menu.addAction("Connect to...")
-                addLabelAction = menu.addAction("Add Label")
+                editLabelAction = menu.addAction("Edit Label")
                 editNotesAction = menu.addAction("Edit Notes")
                 action = menu.exec_(QCursor.pos())
                 if action == connectAction:
                     self.mainWindow.start_connection(picked)
-                elif action == addLabelAction:
-                    self.mainWindow.add_label_to_object(picked, clickPos)
+                elif action == editLabelAction:
+                    self.mainWindow.edit_label_for_object(picked, clickPos)
                 elif action == editNotesAction:
                     self.mainWindow.edit_notes_for_object(picked)
+            # Else if the picked actor is a label actor...
+            elif picked in self.mainWindow.label_actors:
+                editLabelAction = menu.addAction("Edit Label")
+                deleteLabelAction = menu.addAction("Delete Label")
+                action = menu.exec_(QCursor.pos())
+                if action == editLabelAction:
+                    self.mainWindow.edit_label(picked)
+                elif action == deleteLabelAction:
+                    self.mainWindow.delete_label(picked)
+        else:
+            # If nothing interactive is picked, you can fall back to other behaviors.
+            self.cameraRotateActive = True
+            super(CustomInteractorStyle, self).OnLeftButtonDown()
+
         # Clear state variables.
         self.rightButtonDown = False
         self.rightHeld = False
@@ -307,6 +316,7 @@ class MainWindow(QMainWindow):
         self.connection_actors = []  # Will hold the vtkActor objects representing connections.
         self.connection_dict = {}     # Mapping from connection actor to its parameters dictionary.
         self.actor_labels = {}   # Will store label actors for each object
+        self.label_actors = set()  # Will track all label actors separately
         self.actor_notes = {}    # Will store text notes for each object
 
         # Set up the main widget and layout.
@@ -451,10 +461,6 @@ class MainWindow(QMainWindow):
         self.connectionLineThickness = value
 
     def add_label_to_object(self, actor, clickPos):
-        """
-        Adds a label to the specified actor.
-        Uses a cell picker to find a face center if possible.
-        """
         cellPicker = vtk.vtkCellPicker()
         cellPicker.Pick(clickPos[0], clickPos[1], 0, self.renderer)
         if cellPicker.GetCellId() >= 0:
@@ -465,18 +471,80 @@ class MainWindow(QMainWindow):
         if ok and text:
             labelActor = vtk.vtkBillboardTextActor3D()
             labelActor.SetInput(text)
-            labelActor.SetPosition(labelPos)
             labelActor.GetTextProperty().SetFontSize(12)
-            labelActor.GetTextProperty().SetColor(0, 0, 0)  # Black text.
-            # Set both horizontal and vertical justification to centered.
+            labelActor.GetTextProperty().SetColor(0, 0, 0)
             labelActor.GetTextProperty().SetJustificationToCentered()
             labelActor.GetTextProperty().SetVerticalJustificationToCentered()
+            labelActor.SetPosition(labelPos)
             self.renderer.AddActor(labelActor)
             self.vtkWidget.GetRenderWindow().Render()
+            # Adjust position using the bounds so that the text center is at labelPos.
+            bounds = labelActor.GetBounds()
+            textCenter = [(bounds[0] + bounds[1]) / 2.0,
+                        (bounds[2] + bounds[3]) / 2.0,
+                        (bounds[4] + bounds[5]) / 2.5]
+            offset = [textCenter[i] - labelPos[i] for i in range(3)]
+            newPos = [labelPos[i] - offset[i] for i in range(3)]
+            labelActor.SetPosition(newPos)
+            self.vtkWidget.GetRenderWindow().Render()
+            # Store the label actor associated with this object.
             if actor not in self.actor_labels:
                 self.actor_labels[actor] = []
             self.actor_labels[actor].append(labelActor)
+            self.label_actors.add(labelActor)  # if using a global set of label actors
             print(f"Label '{text}' added to object.")
+
+    def edit_label_for_object(self, actor, clickPos):
+        """
+        For the given shape actor and click position, use a cell picker to get the face center.
+        Then check among the labels already attached to that actor for one whose position is close
+        to that face center. If found, open an editor dialog pre-populated with that label's text so
+        that editing will modify that label. If the user clears the text, the label is removed.
+        If no label is found near that face center, create a new label.
+        """
+        import math
+
+        # Use a cell picker to determine the face center
+        cellPicker = vtk.vtkCellPicker()
+        cellPicker.Pick(clickPos[0], clickPos[1], 0, self.renderer)
+        if cellPicker.GetCellId() >= 0:
+            faceCenter = self.get_cell_center(actor, cellPicker)
+        else:
+            faceCenter = actor.GetPosition()
+
+        # Look for a label already attached to this actor that is near the face center.
+        candidate_label = None
+        if actor in self.actor_labels:
+            for labelActor in self.actor_labels[actor]:
+                pos = labelActor.GetPosition()
+                dist = math.sqrt((pos[0] - faceCenter[0])**2 +
+                                (pos[1] - faceCenter[1])**2 +
+                                (pos[2] - faceCenter[2])**2)
+                # Use a small threshold; adjust as needed for your scene scale.
+                if dist < 0.1:
+                    candidate_label = labelActor
+                    break
+
+        if candidate_label is not None:
+            # Open an editor dialog pre-populated with the candidate label's text.
+            current_text = candidate_label.GetInput()
+            new_text, ok = QInputDialog.getMultiLineText(
+                self, "Edit Label", "Edit label text (clear to delete):", current_text)
+            if ok:
+                if new_text.strip() == "":
+                    # User cleared the text, so delete the label.
+                    self.renderer.RemoveActor(candidate_label)
+                    self.actor_labels[actor].remove(candidate_label)
+                    self.label_actors.discard(candidate_label)
+                    self.vtkWidget.GetRenderWindow().Render()
+                    print("Label deleted.")
+                else:
+                    candidate_label.SetInput(new_text)
+                    self.vtkWidget.GetRenderWindow().Render()
+                    print("Label updated.")
+        else:
+            # No label exists at that face. Call your existing label-creation routine.
+            self.add_label_to_object(actor, clickPos)
 
     def edit_notes_for_object(self, actor):
         """
@@ -1534,11 +1602,12 @@ class MainWindow(QMainWindow):
                     labelActor.SetInput(lab["text"])
                     labelActor.SetPosition(lab["position"])
                     labelActor.GetTextProperty().SetFontSize(12)
-                    labelActor.GetTextProperty().SetColor(0, 0, 0)  # Black text.
+                    labelActor.GetTextProperty().SetColor(0, 0, 0)
                     self.renderer.AddActor(labelActor)
                     if actor not in self.actor_labels:
                         self.actor_labels[actor] = []
                     self.actor_labels[actor].append(labelActor)
+                    self.label_actors.add(labelActor)
         # Recreate connections.
         for connection in scene.get("connections", []):
             index1 = connection["from"]
