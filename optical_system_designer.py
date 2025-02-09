@@ -339,40 +339,6 @@ class MainWindow(QMainWindow):
         self.addCylinderButton.clicked.connect(self.add_cylinder)
         self.controlLayout.addWidget(self.addCylinderButton)
 
-        # self.connectButton = QPushButton("Connect Objects")
-        # self.connectButton.clicked.connect(self.activate_connect_mode)
-        # self.controlLayout.addWidget(self.connectButton)
-
-        # self.controlLayout.addWidget(QLabel("Connection Line Type:"))
-        # self.lineTypeCombo = QComboBox()
-        # self.lineTypeCombo.addItems(["Straight", "Curved"])
-        # self.lineTypeCombo.currentTextChanged.connect(self.set_line_type)
-        # self.controlLayout.addWidget(self.lineTypeCombo)
-
-        # self.controlLayout.addWidget(QLabel("Arrowheads:"))
-        # self.arrowCombo = QComboBox()
-        # self.arrowCombo.addItems(["None", "Start", "End", "Both"])
-        # self.arrowCombo.currentTextChanged.connect(self.set_arrow_type)
-        # self.controlLayout.addWidget(self.arrowCombo)
-
-        # self.controlLayout.addWidget(QLabel("Line Style:"))
-        # self.lineStyleCombo = QComboBox()
-        # self.lineStyleCombo.addItems(["Solid", "Dashed", "Dotted"])
-        # self.lineStyleCombo.currentTextChanged.connect(self.set_line_style)
-        # self.controlLayout.addWidget(self.lineStyleCombo)
-
-        # self.controlLayout.addWidget(QLabel("Line Thickness:"))
-        # self.lineThicknessSpin = QDoubleSpinBox()
-        # self.lineThicknessSpin.setRange(1.0, 5.0)
-        # self.lineThicknessSpin.setSingleStep(0.5)
-        # self.lineThicknessSpin.setValue(self.connectionLineThickness)
-        # self.lineThicknessSpin.valueChanged.connect(self.set_line_thickness)
-        # self.controlLayout.addWidget(self.lineThicknessSpin)
-
-        # self.colorButton = QPushButton("Select Connection Color")
-        # self.colorButton.clicked.connect(self.select_connection_color)
-        # self.controlLayout.addWidget(self.colorButton)
-
         # --- Separator ---
         sep = QFrame()
         sep.setFrameShape(QFrame.HLine)
