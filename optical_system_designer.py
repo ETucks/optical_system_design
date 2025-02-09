@@ -471,7 +471,7 @@ class MainWindow(QMainWindow):
         if ok and text:
             labelActor = vtk.vtkBillboardTextActor3D()
             labelActor.SetInput(text)
-            labelActor.GetTextProperty().SetFontSize(12)
+            labelActor.GetTextProperty().SetFontSize(18)
             labelActor.GetTextProperty().SetColor(0, 0, 0)
             labelActor.GetTextProperty().SetJustificationToCentered()
             labelActor.GetTextProperty().SetVerticalJustificationToCentered()
@@ -1600,10 +1600,29 @@ class MainWindow(QMainWindow):
                 for lab in obj["labels"]:
                     labelActor = vtk.vtkBillboardTextActor3D()
                     labelActor.SetInput(lab["text"])
-                    labelActor.SetPosition(lab["position"])
                     labelActor.GetTextProperty().SetFontSize(12)
                     labelActor.GetTextProperty().SetColor(0, 0, 0)
+                    # Ensure the text properties are set for centering.
+                    labelActor.GetTextProperty().SetJustificationToCentered()
+                    labelActor.GetTextProperty().SetVerticalJustificationToCentered()
+                    # Set the label's initial position to the stored position.
+                    labelActor.SetPosition(lab["position"])
                     self.renderer.AddActor(labelActor)
+                    self.vtkWidget.GetRenderWindow().Render()
+
+                    # --- NEW: Adjust the label position so that the text's center is at the saved position ---
+                    bounds = labelActor.GetBounds()  # (xmin, xmax, ymin, ymax, zmin, zmax)
+                    textCenter = [ (bounds[0] + bounds[1]) / 2.0,
+                                (bounds[2] + bounds[3]) / 2.0,
+                                (bounds[4] + bounds[5]) / 2.0 ]
+                    # Compute the offset between the text's computed center and the stored position.
+                    offset = [ textCenter[i] - lab["position"][i] for i in range(3) ]
+                    # Adjust the label's position so that the text center coincides with the saved position.
+                    newPos = [ lab["position"][i] - offset[i] for i in range(3) ]
+                    labelActor.SetPosition(newPos)
+                    self.vtkWidget.GetRenderWindow().Render()
+                    # ------------------------------------------------------------------------------
+
                     if actor not in self.actor_labels:
                         self.actor_labels[actor] = []
                     self.actor_labels[actor].append(labelActor)
