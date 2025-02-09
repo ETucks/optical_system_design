@@ -377,7 +377,6 @@ class MainWindow(QMainWindow):
         
         # Place the orientation marker in the bottom-left corner.
 
-
         # --- NEW: Create a Reset Camera "Button" at the Intersection of the Orientation Arrows ---
         # Here we create a small sphere and add it to the orientation marker assembly.
         # We do this by creating an assembly that contains the axes and the sphere.
