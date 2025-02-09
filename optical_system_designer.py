@@ -6,12 +6,15 @@ import numpy as np
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QColorDialog, QLabel, QComboBox, QGroupBox,
-    QFormLayout, QDoubleSpinBox, QFrame, QMenu, QFileDialog
+    QFormLayout, QDoubleSpinBox, QFrame, QMenu, QFileDialog,
+    QInputDialog
 )
 
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QCursor
 from vtk.qt.QVTKRenderWindowInteractor import QVTKRenderWindowInteractor
+from optiland.fileio import zemax_handler
+from optiland.fileio.zemax_handler import load_zemax_file as optiland_load_zemax_file
 
 ###############################################################################
 # Custom Interactor Style
@@ -160,32 +163,35 @@ class CustomInteractorStyle(vtk.vtkInteractorStyleTrackballCamera):
     def rightButtonReleaseEvent(self, obj, event):
         self.rightHoldTimer.stop()
         if self.cameraRotateActive:
-            # If we are in camera rotation mode (right-click on empty space)
             self.cameraRotateActive = False
             self.rightButtonDown = False
             self.rightLastPos = None
-            # End the simulated left-button rotation.
             super(CustomInteractorStyle, self).OnLeftButtonUp()
             return
         elif not self.rightHeld:
-            # It was a quick click (no significant movement) on an interactive object:
+            # It was a quick click on an interactive object:
             clickPos = self.GetInteractor().GetEventPosition()
             picker = vtk.vtkPropPicker()
             picker.Pick(clickPos[0], clickPos[1], 0, self.renderer)
             picked = picker.GetActor()
             if picked is not None and picked in self.mainWindow.actor_types:
-                from PyQt5.QtWidgets import QMenu  # Ensure QMenu is imported
+                from PyQt5.QtWidgets import QMenu
                 menu = QMenu()
                 connectAction = menu.addAction("Connect to...")
+                addLabelAction = menu.addAction("Add Label")
+                editNotesAction = menu.addAction("Edit Notes")
                 action = menu.exec_(QCursor.pos())
                 if action == connectAction:
                     self.mainWindow.start_connection(picked)
-        # Clear our state variables.
+                elif action == addLabelAction:
+                    self.mainWindow.add_label_to_object(picked, clickPos)
+                elif action == editNotesAction:
+                    self.mainWindow.edit_notes_for_object(picked)
+        # Clear state variables.
         self.rightButtonDown = False
         self.rightHeld = False
         self.rightLastPos = None
         super(CustomInteractorStyle, self).OnLeftButtonUp()
-
 
     def mouseMoveEvent(self, obj, event):
         if self.mainWindow.connecting and not (self.cameraPanActive or self.cameraRotateActive):
@@ -300,7 +306,9 @@ class MainWindow(QMainWindow):
         self.connections = []  # Will store connection info dictionaries.
         self.connection_actors = []  # Will hold the vtkActor objects representing connections.
         self.connection_dict = {}     # Mapping from connection actor to its parameters dictionary.
-        
+        self.actor_labels = {}   # Will store label actors for each object
+        self.actor_notes = {}    # Will store text notes for each object
+
         # Set up the main widget and layout.
         self.frame = QWidget()
         self.setCentralWidget(self.frame)
@@ -441,6 +449,41 @@ class MainWindow(QMainWindow):
 
     def set_line_thickness(self, value):
         self.connectionLineThickness = value
+
+    def add_label_to_object(self, actor, clickPos):
+        """
+        Adds a label to the specified actor.
+        Uses a cell picker to find a face center if possible.
+        """
+        cellPicker = vtk.vtkCellPicker()
+        cellPicker.Pick(clickPos[0], clickPos[1], 0, self.renderer)
+        if cellPicker.GetCellId() >= 0:
+            labelPos = self.get_cell_center(actor, cellPicker)
+        else:
+            labelPos = actor.GetPosition()
+        text, ok = QInputDialog.getText(self, "Add Label", "Enter label text:")
+        if ok and text:
+            labelActor = vtk.vtkBillboardTextActor3D()
+            labelActor.SetInput(text)
+            labelActor.SetPosition(labelPos)
+            labelActor.GetTextProperty().SetFontSize(12)
+            labelActor.GetTextProperty().SetColor(0, 0, 0)  # Black text
+            self.renderer.AddActor(labelActor)
+            self.vtkWidget.GetRenderWindow().Render()
+            if actor not in self.actor_labels:
+                self.actor_labels[actor] = []
+            self.actor_labels[actor].append(labelActor)
+            print(f"Label '{text}' added to object.")
+
+    def edit_notes_for_object(self, actor):
+        """
+        Opens a multi-line dialog to view or edit notes attached to the actor.
+        """
+        existing_text = self.actor_notes.get(actor, "")
+        text, ok = QInputDialog.getMultiLineText(self, "Edit Notes", "Enter notes for this object:", existing_text)
+        if ok:
+            self.actor_notes[actor] = text
+            print("Notes updated for object.")
 
     def start_connection(self, base_actor):
         print("Connection started from", base_actor)
@@ -680,216 +723,193 @@ class MainWindow(QMainWindow):
         self.renderer.ResetCamera()
         self.vtkWidget.GetRenderWindow().Render()
 
+    def create_curved_disk_polydata(curv, diam, conic=0.0, radial_res=32, circum_res=32):
+        """
+        Create a disk (as vtkPolyData) whose surface sag is computed from the curvature (curv)
+        and the conic constant (conic). For a conic surface the sag is computed as
+        z(r) = (r^2/R) / (1 + sqrt(1 - (1+conic)*(r/R)^2))
+        where R = 1/|curv|. For curv near 0 a flat disk is produced.
+        """
+        outer_radius = diam / 2.0
+        pts = vtk.vtkPoints()
+        polys = vtk.vtkCellArray()
+        numTheta = circum_res
+        if abs(curv) < 1e-6:
+            R = float('inf')
+        else:
+            R = 1.0 / abs(curv)
+        for i in range(radial_res + 1):
+            r = (i / radial_res) * outer_radius
+            for j in range(numTheta):
+                theta = (j / numTheta) * 2 * math.pi
+                x = r * math.cos(theta)
+                y = r * math.sin(theta)
+                if abs(curv) < 1e-6:
+                    z = 0.0
+                else:
+                    # If a conic constant is provided and nonzero, use the conic sag formula.
+                    if abs(conic) > 1e-6:
+                        try:
+                            denom = 1 + math.sqrt(1 - (1+conic)*(r/R)**2)
+                            sag = (r*r / R) / denom if denom != 0 else 0.0
+                        except ValueError:
+                            sag = 0.0
+                    else:
+                        try:
+                            sag = R - math.sqrt(R*R - r*r)
+                        except ValueError:
+                            sag = 0.0
+                    z = math.copysign(sag, curv)
+                pts.InsertNextPoint(x, y, z)
+        # Build connectivity (each annular quad becomes two triangles)
+        for i in range(radial_res):
+            for j in range(numTheta):
+                p0 = i * numTheta + j
+                p1 = (i + 1) * numTheta + j
+                p2 = (i + 1) * numTheta + ((j + 1) % numTheta)
+                p3 = i * numTheta + ((j + 1) % numTheta)
+                tri1 = vtk.vtkTriangle()
+                tri1.GetPointIds().SetId(0, p0)
+                tri1.GetPointIds().SetId(1, p1)
+                tri1.GetPointIds().SetId(2, p2)
+                polys.InsertNextCell(tri1)
+                tri2 = vtk.vtkTriangle()
+                tri2.GetPointIds().SetId(0, p0)
+                tri2.GetPointIds().SetId(1, p2)
+                tri2.GetPointIds().SetId(2, p3)
+                polys.InsertNextCell(tri2)
+        polydata = vtk.vtkPolyData()
+        polydata.SetPoints(pts)
+        polydata.SetPolys(polys)
+        return polydata
+
     def load_zemax_file(self):
         """
-        Revised function to (approximately) reconstruct an optical element from
-        a Zemax ZMX file. It:
-        - Reads the file in UTF-16.
-        - Parses surfaces for CURV, DIAM, DISZ, and SLAB.
-        - Computes cumulative z–positions from DISZ values.
-        - Uses a conic sag formula for one of the surfaces (here, if surface index==2,
-            we assume a conic constant of –1; otherwise, a spherical sag is used).
-        - Optionally extrudes the disk by the SLAB value.
-        - Translates each surface by its (scaled) cumulative z–position.
-        - Appends all surfaces into one polydata and creates a single actor.
+        Uses Optiland’s ZemaxToOpticConverter to load a Zemax ZMX file and then iterates over the
+        surfaces (from optic.surface_group.surfaces) to obtain a VTK polydata from each surface’s geometry.
+        All the resulting polydata pieces are appended and rendered as a single actor.
         
-        NOTE: The Zemax file only contains first–order parameters. This code is only an
-        approximation. You may need to adjust global_z_scale and the assumed conic values.
+        If your surfaces’ geometry objects have a method called to_polydata(), it will be used.
+        Otherwise, an error message is printed.
         """
-        # Open the file (UTF-16 handles the BOM and interleaved nulls)
         filename, _ = QFileDialog.getOpenFileName(self, "Load Zemax ZMX File", "", "Zemax Files (*.zmx)")
         if not filename:
             return
+
         try:
-            with open(filename, "r", encoding="utf-16", errors="ignore") as f:
-                lines = f.readlines()
+            from optiland.fileio.zemax_handler import ZemaxToOpticConverter
+            converter = ZemaxToOpticConverter(filename)
+            optic = converter.convert()
         except Exception as e:
-            print("Error reading ZMX file:", e)
+            print("Error converting Zemax file via optiland:", e)
             return
 
-        device_name = None
-        surfaces = []
-        current_surf = None
-
-        # Compile regex patterns for key lines.
-        name_pattern = re.compile(r"^NAME\s+(.*)$", re.IGNORECASE)
-        surf_pattern = re.compile(r"^SURF\s+(\d+)", re.IGNORECASE)
-        key_pattern = re.compile(r"^(CURV|DISZ|DIAM|SLAB)\s+(.+)$", re.IGNORECASE)
-
-        print("DEBUG: Starting to parse file lines...")
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            print("DEBUG: Line:", repr(line))
-            m = name_pattern.match(line)
-            if m:
-                device_name = m.group(1).strip()
-                print("Found device NAME:", device_name)
-                continue
-            m = surf_pattern.match(line)
-            if m:
-                if current_surf is not None:
-                    surfaces.append(current_surf)
-                current_surf = {"index": int(m.group(1))}
-                print("Started new surface block, index:", current_surf["index"])
-                continue
-            if current_surf is not None:
-                m = key_pattern.match(line)
-                if m:
-                    key = m.group(1).upper()
-                    try:
-                        val = float(m.group(2).split()[0])
-                    except:
-                        val = 0.0
-                    if key == "CURV":
-                        current_surf["curvature"] = val
-                        print("Surface CURV:", current_surf["curvature"])
-                    elif key == "DISZ":
-                        if "INFINITY" in m.group(2).upper():
-                            current_surf["disz"] = math.inf
-                        else:
-                            current_surf["disz"] = val
-                        print("Surface DISZ:", current_surf["disz"])
-                    elif key == "DIAM":
-                        current_surf["diameter"] = val
-                        print("Surface DIAM:", current_surf["diameter"])
-                    elif key == "SLAB":
-                        current_surf["slab"] = val
-                        print("Surface SLAB:", current_surf["slab"])
-        if current_surf is not None:
-            surfaces.append(current_surf)
-        print("Parsed surfaces:", surfaces)
-        print("Device name:", device_name)
+        # For debugging, print the optic object's attributes.
+        print("Optic object attributes:", optic.__dict__)
+        # Try to access the surfaces from optic.surface_group
+        surfaces = getattr(optic.surface_group, "surfaces", [])
         if not surfaces:
-            print("No surfaces parsed. Check file format.")
+            print("No surfaces found in optic.surface_group.surfaces")
             return
 
-        # Compute cumulative z positions.
-        # Assume the first surface (with DISZ==infinity) is the object and skip it.
-        z_accum = 0.0
-        for surf in surfaces:
-            if math.isinf(surf.get("disz", 0)):
-                surf["z_pos"] = None
-            else:
-                z_accum += surf["disz"]
-                surf["z_pos"] = z_accum
-                print(f"Surface index {surf['index']} cumulative z: {surf['z_pos']}")
-
-        # Use a global scaling factor to reduce the overall thickness.
-        # (Adjust this factor as needed so that the optic’s thickness is in the expected range.)
-        global_z_scale = 0.1
-
-        # Helper: Create a disk polydata with a curved sag.
-        def create_curved_disk_polydata(curvature, diameter, conic=0.0, radial_res=32, circum_res=32):
-            outer_radius = diameter / 2.0
-            pts = vtk.vtkPoints()
-            polys = vtk.vtkCellArray()
-            numTheta = circum_res
-            if abs(curvature) < 1e-6:
-                R = float('inf')
-            else:
-                R = 1.0/abs(curvature)
-            for i in range(radial_res + 1):
-                r = (i / radial_res) * outer_radius
-                for j in range(numTheta):
-                    theta = (j / numTheta) * 2 * math.pi
-                    x = r * math.cos(theta)
-                    y = r * math.sin(theta)
-                    if abs(curvature) < 1e-6:
-                        z = 0.0
-                    else:
-                        if abs(conic) > 1e-6:
-                            try:
-                                # Use conic sag formula:
-                                #   z(r) = (r^2 / R) / (1 + sqrt(1 - (1+K)*(r/R)^2))
-                                denom = 1 + math.sqrt(1 - (1+conic)*(r/R)**2)
-                                sag = (r*r / R) / denom if denom != 0 else 0.0
-                            except ValueError:
-                                sag = 0.0
-                        else:
-                            try:
-                                sag = R - math.sqrt(R*R - r*r)
-                            except ValueError:
-                                sag = 0.0
-                        z = math.copysign(sag, curvature)
-                    pts.InsertNextPoint(x, y, z)
-            # Create connectivity (two triangles per quad)
-            for i in range(radial_res):
-                for j in range(numTheta):
-                    p0 = i * numTheta + j
-                    p1 = (i + 1) * numTheta + j
-                    p2 = (i + 1) * numTheta + ((j + 1) % numTheta)
-                    p3 = i * numTheta + ((j + 1) % numTheta)
-                    tri1 = vtk.vtkTriangle()
-                    tri1.GetPointIds().SetId(0, p0)
-                    tri1.GetPointIds().SetId(1, p1)
-                    tri1.GetPointIds().SetId(2, p2)
-                    polys.InsertNextCell(tri1)
-                    tri2 = vtk.vtkTriangle()
-                    tri2.GetPointIds().SetId(0, p0)
-                    tri2.GetPointIds().SetId(1, p2)
-                    tri2.GetPointIds().SetId(2, p3)
-                    polys.InsertNextCell(tri2)
-            polydata = vtk.vtkPolyData()
-            polydata.SetPoints(pts)
-            polydata.SetPolys(polys)
-            return polydata
-
-        # Create an append filter for all surface geometries.
-        appendFilter = vtk.vtkAppendPolyData()
-        for surf in surfaces:
-            if surf.get("z_pos") is None:
+        polydata_list = []
+        # Iterate over each surface.
+        for i, surf in enumerate(surfaces):
+            geom = getattr(surf, "geometry", None)
+            if geom is None:
+                print(f"Surface {i} has no geometry attribute.")
                 continue
-
-            diameter = surf.get("diameter", 1.0)
-            curvature = surf.get("curvature", 0.0)
-            # For demonstration, assume surface with index==2 should be conic (set K = –1)
-            conic = -1.0 if surf["index"] == 2 else 0.0
-
-            if abs(curvature) < 1e-6:
-                diskSource = vtk.vtkDiskSource()
-                diskSource.SetInnerRadius(0)
-                diskSource.SetOuterRadius(diameter/2.0)
-                diskSource.SetRadialResolution(1)
-                diskSource.SetCircumferentialResolution(32)
-                diskSource.Update()
-                polydata = diskSource.GetOutput()
+            # Check if the geometry object has a to_polydata() method.
+            if hasattr(geom, "to_polydata"):
+                try:
+                    pd = geom.to_polydata()
+                    polydata_list.append(pd)
+                    print(f"Surface {i} converted to polydata.")
+                except Exception as e:
+                    print(f"Error converting surface {i} geometry to polydata: {e}")
             else:
-                polydata = create_curved_disk_polydata(curvature, diameter, conic, 32, 32)
-            # Extrude if SLAB > 0.
-            if surf.get("slab", 0) > 0:
-                extrude = vtk.vtkLinearExtrusionFilter()
-                extrude.SetInputData(polydata)
-                extrude.SetExtrusionTypeToVectorExtrusion()
-                extrude.SetVector(0, 0, surf["slab"])
-                extrude.CappingOn()
-                extrude.Update()
-                polydata = extrude.GetOutput()
-            # Translate the geometry by the (scaled) cumulative z.
-            transform = vtk.vtkTransform()
-            transform.Translate(0, 0, surf.get("z_pos", 0) * global_z_scale)
-            tpf = vtk.vtkTransformPolyDataFilter()
-            tpf.SetTransform(transform)
-            tpf.SetInputData(polydata)
-            tpf.Update()
-            appendFilter.AddInputData(tpf.GetOutput())
+                print(f"Surface {i} geometry does not support to_polydata().")
+        
+        if not polydata_list:
+            print("No polydata available from any surfaces.")
+            return
+
+        # Append all surface polydata into one.
+        appendFilter = vtk.vtkAppendPolyData()
+        for pd in polydata_list:
+            appendFilter.AddInputData(pd)
         appendFilter.Update()
 
         mapper = vtk.vtkPolyDataMapper()
         mapper.SetInputConnection(appendFilter.GetOutputPort())
-
         deviceActor = vtk.vtkActor()
         deviceActor.SetMapper(mapper)
         deviceActor.GetProperty().SetColor(1, 1, 1)
-
         self.renderer.AddActor(deviceActor)
         self.vtkWidget.GetRenderWindow().Render()
-        print("Loaded Zemax device:", device_name)
+        print("Loaded Zemax device from surface geometry.")
         self.actors.append(deviceActor)
         self.actor_types[deviceActor] = "device"
         self.actor_sources[deviceActor] = None
 
+    def create_curved_disk_polydata(self, curv, diam, conic=0.0, radial_res=32, circum_res=32):
+        """
+        Creates a vtkPolyData representing a disk whose surface sag is computed from curvature and conic constant.
+        For a conic surface the sag is:
+            z(r) = (r^2 / R) / (1 + sqrt(1 - (1+conic)*(r/R)^2))
+        where R = 1/|curv|. For near-zero curvature, a flat disk is returned.
+        """
+        outer_radius = diam / 2.0
+        pts = vtk.vtkPoints()
+        polys = vtk.vtkCellArray()
+        numTheta = circum_res
+        if abs(curv) < 1e-6:
+            R = float('inf')
+        else:
+            R = 1.0 / abs(curv)
+        for i in range(radial_res + 1):
+            r = (i / radial_res) * outer_radius
+            for j in range(numTheta):
+                theta = (j / numTheta) * 2 * math.pi
+                x = r * math.cos(theta)
+                y = r * math.sin(theta)
+                if abs(curv) < 1e-6:
+                    z = 0.0
+                else:
+                    if abs(conic) > 1e-6:
+                        try:
+                            denom = 1 + math.sqrt(1 - (1+conic) * (r / R)**2)
+                            sag = (r * r / R) / denom if denom != 0 else 0.0
+                        except ValueError:
+                            sag = 0.0
+                    else:
+                        try:
+                            sag = R - math.sqrt(R*R - r*r)
+                        except ValueError:
+                            sag = 0.0
+                    z = math.copysign(sag, curv)
+                pts.InsertNextPoint(x, y, z)
+        for i in range(radial_res):
+            for j in range(numTheta):
+                p0 = i * numTheta + j
+                p1 = (i + 1) * numTheta + j
+                p2 = (i + 1) * numTheta + ((j + 1) % numTheta)
+                p3 = i * numTheta + ((j + 1) % numTheta)
+                tri1 = vtk.vtkTriangle()
+                tri1.GetPointIds().SetId(0, p0)
+                tri1.GetPointIds().SetId(1, p1)
+                tri1.GetPointIds().SetId(2, p2)
+                polys.InsertNextCell(tri1)
+                tri2 = vtk.vtkTriangle()
+                tri2.GetPointIds().SetId(0, p0)
+                tri2.GetPointIds().SetId(1, p2)
+                tri2.GetPointIds().SetId(2, p3)
+                polys.InsertNextCell(tri2)
+        polydata = vtk.vtkPolyData()
+        polydata.SetPoints(pts)
+        polydata.SetPolys(polys)
+        return polydata
+    
     # --- Method to create a connection line between two objects ---
     def create_connection_line(self, actor1, actor2):
         # Get the positions of the two objects.
@@ -1178,6 +1198,10 @@ class MainWindow(QMainWindow):
             colorButton = QPushButton("Change Color")
             colorButton.clicked.connect(self.change_selected_actor_color)
             self.shapeEditorLayout.addRow(colorButton)
+            # Edit object notes
+            notesButton = QPushButton("Edit Notes")
+            notesButton.clicked.connect(lambda: self.edit_notes_for_object(self.selected_actor))
+            self.shapeEditorLayout.addRow(notesButton)
 
         self.shapeEditorGroup.setVisible(True)
 
@@ -1361,6 +1385,16 @@ class MainWindow(QMainWindow):
                     "Radius": source.GetRadius(),
                     "Height": source.GetHeight()
                 }
+            if actor in self.actor_notes:
+                obj["notes"] = self.actor_notes[actor]
+            if actor in self.actor_labels:
+                label_list = []
+                for labelActor in self.actor_labels[actor]:
+                    label_list.append({
+                        "text": labelActor.GetInput(),
+                        "position": list(labelActor.GetPosition())
+                    })
+                obj["labels"] = label_list
             scene["objects"].append(obj)
 
         # Instead of using self.connections, build the connection list from connection_dict.
@@ -1489,7 +1523,19 @@ class MainWindow(QMainWindow):
                 self.actors.append(actor)
                 self.actor_types[actor] = "cylinder"
                 self.actor_sources[actor] = cylinderSource
-        
+            if "notes" in obj:
+                self.actor_notes[actor] = obj["notes"]
+            if "labels" in obj:
+                for lab in obj["labels"]:
+                    labelActor = vtk.vtkBillboardTextActor3D()
+                    labelActor.SetInput(lab["text"])
+                    labelActor.SetPosition(lab["position"])
+                    labelActor.GetTextProperty().SetFontSize(12)
+                    labelActor.GetTextProperty().SetColor(0, 0, 0)  # Black text.
+                    self.renderer.AddActor(labelActor)
+                    if actor not in self.actor_labels:
+                        self.actor_labels[actor] = []
+                    self.actor_labels[actor].append(labelActor)
         # Recreate connections.
         for connection in scene.get("connections", []):
             index1 = connection["from"]
