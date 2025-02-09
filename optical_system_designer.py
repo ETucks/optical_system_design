@@ -467,7 +467,10 @@ class MainWindow(QMainWindow):
             labelActor.SetInput(text)
             labelActor.SetPosition(labelPos)
             labelActor.GetTextProperty().SetFontSize(12)
-            labelActor.GetTextProperty().SetColor(0, 0, 0)  # Black text
+            labelActor.GetTextProperty().SetColor(0, 0, 0)  # Black text.
+            # Set both horizontal and vertical justification to centered.
+            labelActor.GetTextProperty().SetJustificationToCentered()
+            labelActor.GetTextProperty().SetVerticalJustificationToCentered()
             self.renderer.AddActor(labelActor)
             self.vtkWidget.GetRenderWindow().Render()
             if actor not in self.actor_labels:
